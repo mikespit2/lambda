@@ -1,0 +1,227 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Weekly DB Snapshot Lambda Function
+Metadata:
+  'AWS::CloudFormation::Designer':
+    9a6c0039-11d6-48e9-831d-2cc8e7607b2d:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 300
+        'y': 210
+      z: 1
+      embeds: []
+    44fa137c-df28-4a39-a8d9-7b5b719ae201:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 180
+        'y': 90
+      z: 1
+      embeds: []
+      isassociatedwith:
+        - a1ad887d-79e3-48f5-8d96-453eaf7d37c9
+    81d18409-5307-4a59-91dc-27ee5bf56630:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 60
+        'y': 210
+      z: 1
+      embeds: []
+      isassociatedwith:
+        - a1ad887d-79e3-48f5-8d96-453eaf7d37c9
+    a1ad887d-79e3-48f5-8d96-453eaf7d37c9:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 180
+        'y': 210
+      z: 1
+      embeds: []
+    7b2e0422-93fa-40f1-94b6-da17306fc831:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 300
+        'y': 90
+      z: 1
+      embeds: []
+      isassociatedwith:
+        - 9a6c0039-11d6-48e9-831d-2cc8e7607b2d
+    41f057fb-b95d-4a31-b130-bbd9c39cda83:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 460
+        'y': 110
+      z: 1
+      embeds: []
+
+Resources:
+  WeeklyDBSnapshotsLambdaRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+          - Effect: Allow
+            Principal:
+              Service:
+                - rds.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+          - Effect: Allow
+            Principal:
+              Service: logs.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'               
+      Path: /
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: a1ad887d-79e3-48f5-8d96-453eaf7d37c9
+  WeeklyDBSnapshotsRolePolicies:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: WeeklyDBSnapshotsPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'rds:DescribeDBSnapshots'
+              - 'rds:ListTagsForResource'
+              - 'rds:DeleteDBSnapshot'
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - 's3:*'
+            Resource: !Join 
+              - ''
+              - - 'arn:aws:s3:::'
+                - !Ref RefBucket
+                - '/*'
+          - Effect: Allow
+            Action:
+              - 'logs:*'
+            Resource: 'arn:aws:logs:*:*:*'                
+      Roles:
+        - Ref: WeeklyDBSnapshotsLambdaRole
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 81d18409-5307-4a59-91dc-27ee5bf56630
+  WeeklyDBSnapshotsProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Path: /
+      Roles:
+        - Ref: WeeklyDBSnapshotsLambdaRole
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 44fa137c-df28-4a39-a8d9-7b5b719ae201
+  WeeklyDBSnapshotsLambda:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Handler: index.lambda_handler
+      Role:
+        'Fn::GetAtt':
+          - WeeklyDBSnapshotsLambdaRole
+          - Arn
+      Code:
+        ZipFile: |
+            import boto3
+            import json
+            import os
+            import datetime
+            from datetime import datetime, timezone
+
+
+
+            def lambda_handler(event, context):
+              client = boto3.client('rds')
+
+
+              currentdate = datetime.now(timezone.utc)
+              dbsnapshots = client.describe_db_snapshots(SnapshotType='manual')
+
+              dbsnapshots = dbsnapshots['DBSnapshots']
+
+              for snapshot in dbsnapshots:
+                dbsnapshotid = snapshot['DBSnapshotIdentifier']
+                dbsnapshotcreatetime = snapshot['SnapshotCreateTime']
+                dbsnapshotarn = snapshot['DBSnapshotArn']
+                timedifference = currentdate - dbsnapshotcreatetime
+                if timedifference.days>60:
+                  print (dbsnapshotid + " is older than 60 days. Checking tags")
+                  tags = client.list_tags_for_resource(ResourceName=dbsnapshotarn)
+                  tags = tags['TagList']
+                  for tag in tags:
+                    if  any(tag['Key'] == 'DBBackupFrequency' and tag['Value'] == 'Weekly' for tag in tags):
+                      print ('Weekly tag found, Deleting snapshot')
+                      response = client.delete_db_snapshot(DBSnapshotIdentifier=dbsnapshotid)
+                    else:
+                      print (dbsnapshotid + ' does not have Weekly tag, skipping')
+                  if not tags:
+                    print (dbsnapshotid + ' does not have Weekly tag, skipping')    
+                else:
+                  print (dbsnapshotid + " is not older than 60 days, skipping")
+
+
+
+
+
+      Runtime: python3.6
+      Timeout: 300
+      Environment:
+        Variables:
+          RefBucket: !Ref RefBucket
+          BucketFolder: !Ref BucketFolder
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 9a6c0039-11d6-48e9-831d-2cc8e7607b2d
+  DescribeDBLambdaWeeklyEvent:
+    Type: 'AWS::Events::Rule'
+    Properties:
+      ScheduleExpression: rate(7 days)
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt WeeklyDBSnapshotsLambda.Arn
+          Id: WeeklyDBSnapshotsTarget
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 41f057fb-b95d-4a31-b130-bbd9c39cda83
+  PermissionForEventsToInvokeLambda:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName:
+        'Fn::GetAtt':
+          - WeeklyDBSnapshotsLambda
+          - Arn
+      Action: 'lambda:InvokeFunction'
+      Principal: events.amazonaws.com
+      SourceArn:
+        'Fn::GetAtt':
+          - DescribeDBLambdaWeeklyEvent
+          - Arn
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 7b2e0422-93fa-40f1-94b6-da17306fc831
+
+Parameters:
+  BucketFolder:
+    Type: String
+    Description: Path to the folder on the S3 bucket to write files
+    Default: data/env/
+  RefBucket:
+    Type: String
+    Description: Bucket in s3 to put logs
