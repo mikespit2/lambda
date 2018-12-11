@@ -1,0 +1,414 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Restrict Common Sensitive Ports Lambda Function
+Resources:
+
+
+  AWSConfigRule:
+    Type: 'AWS::Config::ConfigRule'
+    Properties:
+      ConfigRuleName: !Ref ConfigRuleName
+      Description: >-
+        Checks whether security groups that are in use disallow unrestricted
+        incoming TCP traffic to the specified ports.
+      InputParameters:
+        blockedPort1: !If 
+          - blockedPort1
+          - !Ref blockedPort1
+          - !Ref 'AWS::NoValue'
+      Source:
+        Owner: AWS
+        SourceIdentifier: RESTRICTED_INCOMING_TRAFFIC
+  ClosePortLambdaRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+          - Effect: Allow
+            Principal:
+              Service: logs.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'              
+      Path: /
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: a1ad887d-79e3-48f5-8d96-453eaf7d37c9
+  ClosePortRolePolicies: #separate roles?
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: ClosePortLambdaPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'ec2:RevokeSecurityGroupIngress'
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - 's3:*'
+            Resource: !Join 
+              - ''
+              - - 'arn:aws:s3:::'
+                - !Ref RefBucket
+                - '/*'
+          - Effect: Allow
+            Action:
+              - 'logs:*'
+            Resource: 'arn:aws:logs:*:*:*'
+      Roles:
+        - Ref: ClosePortLambdaRole
+
+  LambdaInvokePermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !GetAtt ClosePortLambda.Arn
+      Action: 'lambda:InvokeFunction'
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref ConfigSNSArn
+      
+  ClosePortLambdaSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint:
+        Fn::GetAtt:
+          - ClosePortLambda
+          - Arn
+      Protocol: lambda
+      TopicArn: !Ref ConfigSNSArn
+
+  ClosePortLambda:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Handler: index.lambda_handler
+      Role:
+        'Fn::GetAtt':
+          - ClosePortLambdaRole
+          - Arn
+      Code:
+        ZipFile: |
+            import boto3
+            import json
+            import os
+            from botocore.exceptions import ClientError
+
+            def lambda_handler(event, context): 
+              message = event['Records'][0]['Sns']['Message']
+              message = json.loads(message)
+              securitygroup = message['resourceId']
+              rule = message['newEvaluationResult']['evaluationResultIdentifier']['evaluationResultQualifier']['configRuleName']
+              compliance = message['newEvaluationResult']['complianceType']
+              #print(compliance)
+              #print(securitygroup)
+              #print(rule)
+              portlist = [os.environ['blockedPort1']]
+              cidr = '0.0.0.0/0'  #
+              cidrv6 = '::/0'
+
+              client = boto3.client('ec2')
+              if compliance =='NON_COMPLIANT' and rule=='restricted-common-ports':
+                for port in portlist:
+                  try:
+                    port = int(port)
+                    response = client.revoke_security_group_ingress(
+                    GroupId=securitygroup,
+                    IpPermissions=[
+                      {
+                          'FromPort': port,
+                          'IpProtocol': 'tcp',
+                          'Ipv6Ranges': [
+                              {
+                                  'CidrIpv6': cidrv6
+                              },
+                          ],
+                          'ToPort': port,
+                      },
+                  ],
+                    DryRun=False
+                    )
+                  except ClientError as e: print (e)
+                  pass    
+                for port in portlist:
+                  try:
+                    port = int(port)
+                    response = client.revoke_security_group_ingress(
+                    CidrIp=cidr,
+                    FromPort=port,
+                    GroupId=securitygroup,
+                    IpProtocol='tcp',
+                    ToPort=port,
+                    DryRun=False
+                    )
+                  except ClientError as e: print (e)
+                  pass
+### add a describe security group to get cidr range for revoke 
+
+      Runtime: python2.7
+      Timeout: 10
+      Environment:
+        Variables:
+          RefBucket: !Ref RefBucket
+          blockedPort1: !Ref blockedPort1
+          
+
+
+  Port22CheckLambda:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Handler: index.lambda_handler
+      Role:
+        'Fn::GetAtt':
+          - ClosePortLambdaRole
+          - Arn
+      Code:
+        ZipFile: |
+
+            #
+            # This file made available under CC0 1.0 Universal (https://creativecommons.org/publicdomain/zero/1.0/legalcode)
+            #
+            # Ensure that no security groups allow public access to the specified ports.
+            # Description: Checks that all security groups block access to the specified ports.
+            #
+            # Trigger Type: Change Triggered
+            # Scope of Changes: EC2:SecurityGroup
+            # Accepted Parameters: examplePort1, exampleRange1, examplePort2, ...
+            # Example Value: 8080, 1-1024, 2375, ...
+
+
+            import json
+            import boto3
+
+
+            APPLICABLE_RESOURCES = ["AWS::EC2::SecurityGroup"]
+
+
+            def expand_range(ports):
+                if "-" in ports:
+                    return range(int(ports.split("-")[0]), int(ports.split("-")[1])+1)
+                else:
+                    return [int(ports)]
+
+
+            def find_exposed_ports(ip_permissions):
+                exposed_ports = []
+                for permission in ip_permissions or []:
+                    for ip in permission["ipRanges"]:
+                        if "fromPort" in permission:
+                                exposed_ports.extend(range(permission["fromPort"],
+                                                              permission["toPort"]+1))
+                        # if "fromPort" does not exist, port range is "All"
+                        else:
+                            exposed_ports.extend(range(0,65535+1))
+
+                return exposed_ports
+
+
+            def find_violation(ip_permissions, forbidden_ports):
+                exposed_ports = find_exposed_ports(ip_permissions)
+                for forbidden in forbidden_ports:
+                    ports = expand_range(forbidden_ports[forbidden])
+                    for port in ports:
+                        if port in exposed_ports:
+                            return "A forbidden port is exposed to the internet."
+
+                return None
+
+
+            def evaluate_compliance(configuration_item, rule_parameters):
+                if configuration_item["resourceType"] not in APPLICABLE_RESOURCES:
+                    return {
+                        "compliance_type": "NOT_APPLICABLE",
+                        "annotation": "The rule doesn't apply to resources of type " +
+                        configuration_item["resourceType"] + "."
+                    }
+
+                # Check if resource was deleted
+                if configuration_item['configurationItemStatus'] == "ResourceDeleted":
+                    return {
+                        "compliance_type": "NOT_APPLICABLE",
+                        "annotation": "This resource was deleted."
+                    }
+
+                violation = find_violation(
+                    configuration_item["configuration"].get("ipPermissions"),
+                    rule_parameters
+                )
+
+                if violation:
+                    return {
+                        "compliance_type": "NON_COMPLIANT",
+                        "annotation": violation
+                    }
+                return {
+                    "compliance_type": "COMPLIANT",
+                    "annotation": "This resource is compliant with the rule."
+                }
+
+
+            def lambda_handler(event, context):
+                invoking_event = json.loads(event["invokingEvent"])
+                configuration_item = invoking_event["configurationItem"]
+                rule_parameters = json.loads(event["ruleParameters"])
+
+                result_token = "No token found."
+                if "resultToken" in event:
+                    result_token = event["resultToken"]
+
+                evaluation = evaluate_compliance(configuration_item, rule_parameters)
+
+                config = boto3.client("config")
+                config.put_evaluations(
+                    Evaluations=[
+                        {
+                            "ComplianceResourceType":
+                                configuration_item["resourceType"],
+                            "ComplianceResourceId":
+                                configuration_item["resourceId"],
+                            "ComplianceType":
+                                evaluation["compliance_type"],
+                            "Annotation":
+                                evaluation["annotation"],
+                            "OrderingTimestamp":
+                                configuration_item["configurationItemCaptureTime"]
+                        },
+                    ],
+                    ResultToken=result_token
+                )
+ 
+
+      Runtime: python2.7
+      Timeout: 10
+      Environment:
+        Variables:
+          RefBucket: !Ref RefBucket
+          blockedPort1: !Ref blockedPort1
+
+
+
+
+Parameters:
+  ConfigRuleName:
+    Type: String
+    Default: restricted-common-ports
+    Description: The name that you assign to the AWS Config rule.
+    MinLength: '1'
+    ConstraintDescription: This parameter is required.
+  blockedPort1:
+    Type: String
+    Default: '22'
+    Description: Blocked TCP port number.
+  RefBucket:
+    Type: String
+    Description: Bucket to put logs
+    Default: mikecftests-s3bucket
+  ConfigSNSArn:
+    Type: String
+    Description: Delivery Channel for Config SNS Topic
+    Default: arn:aws:sns:us-west-2:874241571069:config-22-open
+    
+Metadata:
+  'AWS::CloudFormation::Interface':
+    ParameterGroups:
+      - Label:
+          default: Required
+        Parameters: []
+      - Label:
+          default: Optional
+        Parameters:
+          - blockedPort1
+Conditions:
+  blockedPort1: !Not 
+    - !Equals 
+      - ''
+      - !Ref blockedPort1
+
+################################
+
+
+
+
+ConfigPermissionToCallLambda: 
+  Type: AWS::Lambda::Permission
+  Properties: 
+    FunctionName: 
+      Fn::GetAtt: 
+        - VolumeAutoEnableIOComplianceCheck
+        - Arn
+    Action: "lambda:InvokeFunction"
+    Principal: "config.amazonaws.com"
+VolumeAutoEnableIOComplianceCheck: 
+  Type: AWS::Lambda::Function
+  Properties: 
+    Code: 
+      ZipFile: 
+        !Sub |
+          var aws  = require('aws-sdk');
+          var config = new aws.ConfigService();
+          var ec2 = new aws.EC2();
+          exports.handler = function(event, context) {
+              compliance = evaluateCompliance(event, function(compliance, event) {
+                    var configurationItem = JSON.parse(event.invokingEvent).configurationItem;
+                    var putEvaluationsRequest = {
+                        Evaluations: [{
+                            ComplianceResourceType: configurationItem.resourceType,
+                            ComplianceResourceId: configurationItem.resourceId,
+                            ComplianceType: compliance,
+                            OrderingTimestamp: configurationItem.configurationItemCaptureTime
+                        }],
+                        ResultToken: event.resultToken
+                    };
+                    config.putEvaluations(putEvaluationsRequest, function(err, data) {
+                        if (err) context.fail(err);
+                        else context.succeed(data);
+                    });
+                });
+            };
+            function evaluateCompliance(event, doReturn) {
+                var configurationItem = JSON.parse(event.invokingEvent).configurationItem;
+                var status = configurationItem.configurationItemStatus;
+                if (configurationItem.resourceType !== 'AWS::EC2::Volume' || event.eventLeftScope || (status !== 'OK' && status !== 'ResourceDiscovered'))
+                    doReturn('NOT_APPLICABLE', event);
+                else ec2.describeVolumeAttribute({VolumeId: configurationItem.resourceId, Attribute: 'autoEnableIO'}, function(err, data) {
+                    if (err) context.fail(err);
+                    else if (data.AutoEnableIO.Value) doReturn('COMPLIANT', event);
+                    else doReturn('NON_COMPLIANT', event);
+                });
+            }
+    Handler: "index.handler"
+    Runtime: nodejs4.3
+    Timeout: 30
+    Role: 
+      Fn::GetAtt: 
+        - LambdaExecutionRole
+        - Arn
+ConfigRuleForVolumeAutoEnableIO: 
+  Type: AWS::Config::ConfigRule
+  Properties: 
+    ConfigRuleName: ConfigRuleForVolumeAutoEnableIO
+    Scope: 
+      ComplianceResourceId: 
+        Ref: Ec2Volume
+      ComplianceResourceTypes: 
+        - "AWS::EC2::Volume"
+    Source: 
+      Owner: "CUSTOM_LAMBDA"
+      SourceDetails: 
+        - 
+          EventSource: "aws.config"
+          MessageType: "ConfigurationItemChangeNotification"
+      SourceIdentifier: 
+        Fn::GetAtt: 
+          - VolumeAutoEnableIOComplianceCheck
+          - Arn
+  DependsOn: ConfigPermissionToCallLambda

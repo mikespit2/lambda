@@ -1,0 +1,171 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Metadata: 
+  License: Apache-2.0
+Description: 'AWS CloudFormation Template ACM Check This template checks the ACM Expiration config rule and publishes to an SNS Topic if the rule is NON-COMPLIANT'
+Parameters:
+  MaximumExecutionFrequency:
+    Type: String
+    Default: TwentyFour_Hours
+    Description: The frequency that you want AWS Config to run evaluations for the rule.
+    MinLength: '1'
+    ConstraintDescription: This parameter is required.
+    AllowedValues:
+      - One_Hour
+      - Three_Hours
+      - Six_Hours
+      - Twelve_Hours
+      - TwentyFour_Hours
+  daysToExpiration:
+    Type: String
+    Default: '40'
+    Description: >-
+      Specify the number of days before the rule flags the ACM Certificate as
+      noncompliant.
+  ConfigRuleName:
+    Type: String
+    Default: acm-certificate-expiration-check
+    Description: The name that you assign to the AWS Config rule.
+    MinLength: '1'
+    ConstraintDescription: This parameter is required.  
+
+  ConfigRuleExists:
+    Type: String
+    Description: 'Do you have an exisiting AWS Config Rule for ACM Cert Expiration?'
+    Default: 'false'
+    AllowedValues: ['false', 'true']
+  ExpirationTopicSNSArn:
+    Type: String
+    Description: The ARN of the SNS Topic Config publishes to. 
+
+Conditions:
+  CreateConfigRule: !Equals [ !Ref ConfigRuleExists, 'false' ]
+  daysToExpiration: !Not 
+    - !Equals 
+      - ''
+      - !Ref daysToExpiration  
+Resources:
+  AWSConfigRule:
+    Type: 'AWS::Config::ConfigRule'
+    Properties:
+      ConfigRuleName: !Ref ConfigRuleName
+      Description: >-
+        Checks whether ACM Certificates in your account are marked for
+        expiration within the specified number of days. Certificates provided by
+        ACM are automatically renewed. ACM does not automatically renew
+        certificates that you import.
+      InputParameters:
+        daysToExpiration: !If 
+          - daysToExpiration
+          - !Ref daysToExpiration
+          - !Ref 'AWS::NoValue'
+      Scope:
+        ComplianceResourceTypes:
+          - 'AWS::ACM::Certificate'
+      Source:
+        Owner: AWS
+        SourceIdentifier: ACM_CERTIFICATE_EXPIRATION_CHECK
+      MaximumExecutionFrequency: !Ref MaximumExecutionFrequency
+    Condition: CreateConfigRule
+ 
+        
+  ACMCheckLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [lambda.amazonaws.com]
+          Action: ['sts:AssumeRole']
+      Policies:
+      - PolicyName: ACMExpirationLambdaPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action: ['logs:*', 'config:DescribeCompliancebyConfigRule','config:DescribeConfigRules', 'SNS:Publish']
+            Resource: '*'
+
+
+
+  ACMScheduledRule: 
+    Type: AWS::Events::Rule
+    Properties: 
+      Description: "ACMScheduledRule"
+      ScheduleExpression: "rate(1 day)"
+      State: "ENABLED"
+      Targets: 
+        - 
+          Arn: 
+            Fn::GetAtt: 
+              - "ACMExpirationLambda"
+              - "Arn"
+          Id: TargetFunctionV1      
+
+  PermissionForEventsToInvokeLambda: 
+    Type: AWS::Lambda::Permission
+    Properties: 
+      FunctionName: 
+        Ref: "ACMExpirationLambda"
+      Action: "lambda:InvokeFunction"
+      Principal: "events.amazonaws.com"
+      SourceArn: 
+        Fn::GetAtt: 
+          - "ACMScheduledRule"
+          - "Arn"
+      
+
+
+  ACMExpirationLambda:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Handler: index.lambda_handler
+      Role:
+        'Fn::GetAtt':
+          - ACMCheckLambdaExecutionRole
+          - Arn
+      Code:
+        ZipFile: |
+            import boto3
+            import json
+            import os
+            from botocore.exceptions import ClientError
+            def lambda_handler(event, context): 
+
+
+              client = boto3.client('config')
+              response = client.describe_compliance_by_config_rule(
+                    ConfigRuleNames=[
+                        'acm-certificate-expiration-check',
+                    ]
+                )              
+
+              compliance = response['ComplianceByConfigRules'][0]['Compliance']['ComplianceType']
+              #return compliance
+
+
+              client = boto3.client('sns')
+              if compliance =='NON_COMPLIANT': 
+                response = client.publish(
+                    TopicArn=os.environ['ExpirationTopicSNSArn'],
+                    #TargetArn='string',
+                    #PhoneNumber='string',
+                    Message='Please check your Amazon Managed Certificates in the UCOP Build Account.',
+                    Subject='Your Amazon Managed Certificates are expiring soon',
+                    #MessageStructure='string',
+                    #MessageAttributes={
+                        #'string': {
+                            #'DataType': 'string',
+                            #'StringValue': 'string',
+                            #'BinaryValue': b'bytes'
+                        #}
+                    #}
+                )
+      Runtime: python2.7
+      Timeout: 300
+      Environment:
+        Variables:
+          ExpirationTopicSNSArn: !Ref ExpirationTopicSNSArn
+
+            
