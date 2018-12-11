@@ -1,0 +1,200 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: RDS CPU Alarm Template
+Resources:
+  RDSCPUSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+      - Endpoint: "mike.spitalieri@dlzpgroup.com"
+        Protocol: email
+      - Endpoint: "nick.sefiddashti@dlzpgroup.com"
+        Protocol: email
+
+
+  HBLDDEV5RDSCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: CPU alarm for HBLDDEV5 RDS instance
+      AlarmActions:
+      - Ref: RDSCPUSNSTopic
+      MetricName: CPUUtilization
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '10'
+      Threshold: '90'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+      - Name: DBInstanceIdentifier
+        Value: hblddev5
+        
+  HBLDDEV8RDSCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: CPU alarm for HBLDDEV8 RDS instance
+      AlarmActions:
+      - Ref: RDSCPUSNSTopic
+      MetricName: CPUUtilization
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '10'
+      Threshold: '90'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+      - Name: DBInstanceIdentifier
+        Value: hblddev8
+        
+        
+  HBLDSYS1RDSCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: CPU alarm for HBLDSYS1 RDS instance
+      AlarmActions:
+      - Ref: RDSCPUSNSTopic
+      MetricName: CPUUtilization
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '10'
+      Threshold: '90'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+      - Name: DBInstanceIdentifier
+        Value: hbldsys1
+        
+  HBLDTST1RDSCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: CPU alarm for HBLDTST1 RDS instance
+      AlarmActions:
+      - Ref: RDSCPUSNSTopic
+      MetricName: CPUUtilization
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '10'
+      Threshold: '90'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+      - Name: DBInstanceIdentifier
+        Value: hbldtst1
+
+  HBLDUAT0RDSCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: CPU alarm for HBLDUAT0 RDS instance
+      AlarmActions:
+      - Ref: RDSCPUSNSTopic
+      MetricName: CPUUtilization
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '10'
+      Threshold: '90'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+      - Name: DBInstanceIdentifier
+        Value: hblduat0
+        
+  HBLDUAT1RDSCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: CPU alarm for HBLDUAT1 RDS instance
+      AlarmActions:
+      - Ref: RDSCPUSNSTopic
+      MetricName: CPUUtilization
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '10'
+      Threshold: '90'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+      - Name: DBInstanceIdentifier
+        Value: hblduat1
+
+  HBLDUAT9RDSCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: CPU alarm for HBLDUAT9 RDS instance
+      AlarmActions:
+      - Ref: RDSCPUSNSTopic
+      MetricName: CPUUtilization
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '10'
+      Threshold: '90'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+      - Name: DBInstanceIdentifier
+        Value: hblduat9
+
+  IBLDSYS1RDSCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: CPU alarm for IBLDSYS1 RDS instance
+      AlarmActions:
+      - Ref: RDSCPUSNSTopic
+      MetricName: CPUUtilization
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '10'
+      Threshold: '90'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+      - Name: DBInstanceIdentifier
+        Value: ibldsys1
+        
+  IBLDUAT0RDSCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: CPU alarm for IBLDUAT0 RDS instance
+      AlarmActions:
+      - Ref: RDSCPUSNSTopic
+      MetricName: CPUUtilization
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '10'
+      Threshold: '90'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+      - Name: DBInstanceIdentifier
+        Value: iblduat0
+
+  SBLDSYS1RDSCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: CPU alarm for SBLDSYS1 RDS instance
+      AlarmActions:
+      - Ref: RDSCPUSNSTopic
+      MetricName: CPUUtilization
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '10'
+      Threshold: '90'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+      - Name: DBInstanceIdentifier
+        Value: sbldsys1
+        
+  SBLDUAT01RDSCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: CPU alarm for SBLDUAT0 RDS instance
+      AlarmActions:
+      - Ref: RDSCPUSNSTopic
+      MetricName: CPUUtilization
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '10'
+      Threshold: '90'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+      - Name: DBInstanceIdentifier
+        Value: sblduat0

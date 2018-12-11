@@ -1,0 +1,218 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: RDS Disk Space Alarm Template
+Resources:
+  RDSDISKSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+      - Endpoint: "mike.spitalieri@dlzpgroup.com"
+        Protocol: email
+      - Endpoint: "nick.sefiddashti@dlzpgroup.com"
+        Protocol: email
+
+
+  HBLDDEV5RDSDISKAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: DISK alarm for HBLDDEV5 RDS instance
+      AlarmActions:
+      - Ref: RDSDISKSNSTopic
+      MetricName: FreeStorageSpace
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '10'
+      Threshold: '250'
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+      - Name: DBInstanceIdentifier
+        Value: hblddev5
+        
+  HBLDDEV8RDSDISKAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: DISK alarm for HBLDDEV8 RDS instance
+      AlarmActions:
+      - Ref: RDSDISKSNSTopic
+      MetricName: FreeStorageSpace
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '10'
+      Threshold: '250'
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+      - Name: DBInstanceIdentifier
+        Value: hblddev8
+        
+        
+  HBLDSYS1RDSDISKAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: DISK alarm for HBLDSYS1 RDS instance
+      AlarmActions:
+      - Ref: RDSDISKSNSTopic
+      MetricName: FreeStorageSpace
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '10'
+      Threshold: '250'
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+      - Name: DBInstanceIdentifier
+        Value: hbldsys1
+        
+  HBLDTST1RDSDISKAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: DISK alarm for HBLDTST1 RDS instance
+      AlarmActions:
+      - Ref: RDSDISKSNSTopic
+      MetricName: FreeStorageSpace
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '10'
+      Threshold: '250'
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+      - Name: DBInstanceIdentifier
+        Value: hbldtst1
+
+  HBLDUAT0RDSDISKAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: DISK alarm for HBLDUAT0 RDS instance
+      AlarmActions:
+      - Ref: RDSDISKSNSTopic
+      MetricName: FreeStorageSpace
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '10'
+      Threshold: '250'
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+      - Name: DBInstanceIdentifier
+        Value: hblduat0
+        
+  HBLDUAT1RDSDISKAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: DISK alarm for HBLDUAT1 RDS instance
+      AlarmActions:
+      - Ref: RDSDISKSNSTopic
+      MetricName: FreeStorageSpace
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '10'
+      Threshold: '250'
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+      - Name: DBInstanceIdentifier
+        Value: hblduat1
+
+  HBLDUAT9RDSDISKAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: DISK alarm for HBLDUAT9 RDS instance
+      AlarmActions:
+      - Ref: RDSDISKSNSTopic
+      MetricName: FreeStorageSpace
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '10'
+      Threshold: '250'
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+      - Name: DBInstanceIdentifier
+        Value: hblduat9
+
+  IBLDSYS1RDSDISKAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: DISK alarm for IBLDSYS1 RDS instance
+      AlarmActions:
+      - Ref: RDSDISKSNSTopic
+      MetricName: FreeStorageSpace
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '10'
+      Threshold: '250'
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+      - Name: DBInstanceIdentifier
+        Value: ibldsys1
+        
+  IBLDUAT0RDSDISKAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: DISK alarm for IBLDUAT0 RDS instance
+      AlarmActions:
+      - Ref: RDSDISKSNSTopic
+      MetricName: FreeStorageSpace
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '10'
+      Threshold: '250'
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+      - Name: DBInstanceIdentifier
+        Value: iblduat0
+
+  SBLDSYS1RDSDISKAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: DISK alarm for SBLDSYS1 RDS instance
+      AlarmActions:
+      - Ref: RDSDISKSNSTopic
+      MetricName: FreeStorageSpace
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '10'
+      Threshold: '250'
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+      - Name: DBInstanceIdentifier
+        Value: sbldsys1
+        
+  SBLDUAT01RDSDISKAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: DISK alarm for SBLDUAT0 RDS instance
+      AlarmActions:
+      - Ref: RDSDISKSNSTopic
+      MetricName: FreeStorageSpace
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '10'
+      Threshold: '250'
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+      - Name: DBInstanceIdentifier
+        Value: sblduat0
+        
+  HBLDTRN0RDSDISKAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: DISK alarm for HBLDTRN0 RDS instance
+      AlarmActions:
+      - Ref: RDSDISKSNSTopic
+      MetricName: FreeStorageSpace
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '10'
+      Threshold: '250'
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+      - Name: DBInstanceIdentifier
+        Value: hbldtrn0
+        
